@@ -1,14 +1,14 @@
 # rosclj
 
-A Clojure library designed to ... well, that part is up to you.
+A minimal Clojure library for implementing nodes in a [ROS](www.ros.org) system. 
 
 ## Usage
 
-FIXME
+The library is not yet usable. I'm working on it...
 
 ## License
 
-Copyright © 2016 FIXME
+Copyright © 2016 J.L.Owens
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
