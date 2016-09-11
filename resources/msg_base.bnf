@@ -1,0 +1,41 @@
+<FIELD-OR-COMMENT> ::= FIELD-DEF SPACE COMMENT? | COMMENT | SPACE
+COMMENT ::= CMT-START CMT-TEXT
+<CMT-START> ::= <#"\s*#+">
+<CMT-TEXT> ::= #"\s*.*"
+FIELD-DEF ::= CONSTANT | ARRAYVAR | VAR
+CONSTANT ::= TYPE RSPACE FIELD-NAME <'='> CONST-VAL
+CONST-VAL ::= #".*$"
+ARRAYVAR ::= TYPE ARRAYSPEC RSPACE FIELD-NAME
+VAR ::= TYPE RSPACE FIELD-NAME
+ARRAYSPEC ::= FIXED-LENGTH | VAR-LENGTH
+VAR-LENGTH ::= <'['> <']'>
+FIXED-LENGTH ::= <'['> LENGTH <']'>
+LENGTH ::= #'[1-9][0-9]*'
+
+<FIELD-NAME> ::= IDENTIFIER
+TYPE ::= MESSAGE | boolean | integer | unsigned | float | string | time |
+duration
+MESSAGE ::= HEADER | MESSAGE-NAME
+HEADER ::= 'Header'
+MESSAGE-NAME ::= IDENTIFIER <'/'> IDENTIFIER | IDENTIFIER
+IDENTIFIER ::= #'[a-zA-Z][a-zA-Z0-9_]*'
+boolean ::= 'bool'
+integer ::= int8 | int16 | int32 | int64
+unsigned ::= uint8 | uint16 | uint32 | uint64
+float ::= float32 | float64
+string ::= 'string'
+time ::= 'time'
+duration ::= 'duration'
+int8 ::= 'int8'
+int16 ::= 'int16'
+int32 ::= 'int32'
+int64 ::= 'int64'
+uint8 ::= 'uint8'
+uint16 ::= 'uint16'
+uint32 ::= 'uint32'
+uint64 ::= 'uint64'
+float32 ::= 'float32'
+float64 ::= 'float64'
+<NL> ::= <'\n'> <'\r'>?
+<SPACE> ::= <#"\s*">
+<RSPACE> ::= <#"\s+">
