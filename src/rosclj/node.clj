@@ -1,7 +1,12 @@
 (ns rosclj.node
-  (:require [rosclj.util :as u]))
+  (:require [rosclj.util :as u]
+            [rosclj.rosout :as roslog]
+            [taoensso.timbre :as log]
+            [taoensso.timbre.appenders.core :as appenders]))
 
-(defrecord Node [status master-uri namespace name remapped-names])
+(def ^:dynamic *default-master-uri* nil)
+
+(defrecord Node [status master-uri namespace name remapped])
 
 (defn make-ros-node
   "Construct a new ROS node. Requires the name parameter, and
@@ -13,17 +18,29 @@
   [name & {:keys [master-uri
                   anonymous
                   cmd-line-args]
-           :or   {master-uri      (u/make-uri "127.0.0.1"
-                                              11311)
+           :or   {master-uri      nil
                   anonymous       false
                   cmd-line-args   (next *command-line-args*)}}]
-  (let [master-uri (if (string? master-uri) (u/make-uri master-uri) master-uri)]
-    (->Node :shutdown master-uri "" "" {})))
+  (let [master-uri (when-not master-uri
+                     (or *default-master-uri*
+                         (u/get-env "ROS_MASTER_URI")))
+        master-uri (if (string? master-uri) (u/make-uri master-uri) master-uri)
+        node (->Node :shutdown master-uri nil nil {} nil)
+        [node params] (u/parse-command-line-args node cmd-line-args)
+        _ (u/ensure-directories-exist (:roslog node))]
+    (roslog/setup-logging (u/get-ros-log-location node))
+    ;; process the params
+    ))
 
-(defn start
-  "Start the given ROS node"
+(defn spin
+  "Spin the event loop for the given ROS node. Does not return."
   [node]
-  ())
+  nil)
+
+(defn async-spin
+  "Spin the event loop for the ROS node asynchronously. Returns immediately."
+  [node]
+  nil)
 
 (defn shutdown
   "Shutdown the given node"

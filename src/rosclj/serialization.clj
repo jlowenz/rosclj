@@ -21,6 +21,11 @@
    :time 8
    :duration 8})
 
+(def primitive-field-types
+  #{:bool :int8 :int16 :int32 :int64
+    :uint8 :uint16 :uint32 :uint64
+    :float32 :float64 :time :duration})
+
 (defprotocol ISerializedLength
   (is-fixed-size? [this])
   (serialized-length [this obj]))
