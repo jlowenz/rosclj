@@ -101,6 +101,9 @@
           (+ 4 (* (s/serialized-length type-spec (first arr)) (count arr)))
           (+ 4 (reduce + #(s/serialized-length type-spec %) arr)))))))
 
+;; Generate a message specification from a parsed message file
+
+
 ;; serialize arbitrary messages
 (defmethod s/serialize IMessage [_ ^ByteBuffer stream ^IMessage obj]
   (to-stream obj stream))
