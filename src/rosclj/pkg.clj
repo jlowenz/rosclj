@@ -6,7 +6,6 @@
 
 (def ^:dynamic *ros-package-path* (atom []))
 (def ^:dynamic *ros-packages* (atom {}))
-(def ^:dynamic *ros-message-specs* (atom {}))
 
 (defn parse-pkg-path
   [p]
@@ -49,11 +48,21 @@
             (recur (first ps) (next ps))
             msgs))))))
 
+(defn parse-msg-path [p]
+  (let [f (fs/file p)
+        nom (.getName f)
+        i (.indexOf nom ".")]
+    [(.substring nom 0 i) f]))
+
+(defn extend-msg-map [m [msg-name f]] (assoc m msg-name f))
+
 (defn find-message-files-for-pkg [pkg]
   (let [pkg-file (find-package pkg)
         msg-path (u/make-path (str pkg-file) "msg")
         srv-path (u/make-path (str pkg-file) "srv")
         msgs (fs/find-files msg-path #".*\.msg$")
-        srvs (fs/find-files srv-path #".*\.srv$")]
+        srvs (fs/find-files srv-path #".*\.srv$")
+        msgs (reduce extend-msg-map {} (mapv parse-msg-path msgs))
+        srvs (reduce extend-msg-map {} (mapv parse-msg-path srvs))]
     {:msg msgs
      :srv srvs}))

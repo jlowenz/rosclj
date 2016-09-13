@@ -1,10 +1,18 @@
 (ns rosclj.msg
   (:require [rosclj.serialization :as s]
             [instaparse.core :as insta]
-            [me.raynes.fs :as fs])
+            [me.raynes.fs :as fs]
+            [taoensso.timbre :as log])
   (:import (java.nio ByteBuffer)))
 
 
+(defrecord MessageID [pkg name])
+(defn make-msg-id
+  ([pkg name] (->MessageID pkg name))
+  ([_ pkg name] (->MessageID pkg name)))
+
+;; Map MessageIDs to MessageSpecs
+(def ^:dynamic *ros-message-specs* (atom {}))
 (def message-types ["msg" "srv" "action"])
 
 
@@ -40,7 +48,10 @@
   (serialized-length [_ obj]
     (reduce + (mapv #(s/serialized-length % obj) fields))))
 
-(defrecord Constant [type name value])
+;; Describe services with a programmatic specification
+;; TODO: service specification
+
+(defrecord ConstantSpec [type name value])
 
 ;; FieldSpec types:
 ;;  PrimitiveFieldSpec
@@ -103,6 +114,14 @@
           (+ 4 (* (s/serialized-length type-spec (first arr)) (count arr)))
           (+ 4 (reduce + #(s/serialized-length type-spec %) arr)))))))
 
+(def var-specs
+  #{PrimitiveFieldSpec
+    StringFieldSpec
+    MessageFieldSpec
+    PrimitiveArrayFieldSpec
+    StringArrayFieldSpec
+    MessageArrayFieldSpec})
+
 ;; From (ROS Wiki)[http://wiki.ros.org/ROS/Technical%20Overview#Message_serialization_and_msg_MD5_sums]
 ;; Message types (msgs) in ROS are versioned using a special MD5 sum
 ;; calculation of the msg text. In general, client libraries do not implement
@@ -148,14 +167,63 @@
 (defn message-type? [ftype]
   (= :message ftype))
 
-;; [:TYPE [:string]]
-;; [:TYPE [:uint32]]
-;; [:TYPE [:message "Header"]
+(defn var-spec? [s]
+  (contains? var-specs (type s)))
+(defn constant-spec? [s]
+  (instance? ConstantSpec (type s)))
 
 (defn parse-const [pkg [[ftype] ident val-str]]
   (let [val (read-string val-str)]
     (assert (primitive-type? ftype))
-    (->Constant ftype ident val)))
+    (->ConstantSpec ftype ident val)))
+
+(declare generate-msg-spec)
+
+(defn load-pkgs-msgs [pkg]
+  (let [pkg-files (rosclj.pkg/find-message-files-for-pkg pkg)
+        msg-specs (mapv #(generate-msg-spec (second %) pkg (first %))
+                        (:msgs pkg-files))
+        srv-specs (mapv #(generate-msg-spec (second %) pkg (first %))
+                        (:srvs pkg-files))
+        msg-map (reduce #(assoc %1 (first %2) (second %2)) {} msg-specs)
+        srv-map (reduce #(assoc %1 (first %2) (second %2)) {} srv-specs)]
+    (swap! *ros-message-specs* merge msg-map)
+    (swap! *ros-message-specs* merge srv-map)))
+
+(defn get-msg-spec [parent-pkg msg-name]
+  (let [pkg (if (> (count msg-name) 1) (first msg-name) parent-pkg)
+        name (second msg-name)
+        mid (->MessageID pkg name)]
+    (or (get @*ros-message-specs* mid)
+        (do (load-pkgs-msgs pkg)
+            (get @*ros-message-specs* mid)))))
+
+(defn get-spec-size [s]
+  (cond
+    (instance? PrimitiveFieldSpec s)
+      (:ser-length s)
+    (instance? PrimitiveArrayFieldSpec s)
+      (let [sz (:ser-length s)]
+        (assert (> sz 0) "Primitive array must be fixed size to pre-compute
+        serialized length.")
+        sz)
+    (instance? MessageFieldSpec s)
+      (let [sz (:ser-length s)]
+        (assert (> sz 0) (str "Message field " (:name s) " must be fixed size
+         to pre-compute serialized length."))
+        sz)
+    (instance? MessageArrayFieldSpec s)
+      (let [sz (:ser-length s)]
+        (assert (> sz 0) (str "Message array " (:name s) " must be fixed
+        size array and fixed size message to pre-compute serialized length."))
+        sz)
+    :else (assert false "Fixed size objects required to pre-compute
+    serialized length.")))
+
+(defn compute-fixed-length [spec]
+  (assert (instance? MessageSpec spec) "operates on MessageSpecs")
+  ;; iterate over the fields, sum the length
+  (reduce + (map get-spec-size (:fields spec))))
 
 (defn parse-var [pkg [type-spec ident]]
   (let [ftype (first type-spec)]
@@ -165,28 +233,51 @@
       (string-type? ftype)
         (->StringFieldSpec ident)
       (message-type? ftype)
-        (->MessageFieldSpec ))))
+        (let [sub-msg-spec (get-msg-spec pkg (next type-spec))
+              msg-id (apply make-msg-id pkg (next type-spec))
+              ser-length (if (s/is-fixed-size? sub-msg-spec)
+                           (compute-fixed-length sub-msg-spec)
+                           0)]
+          (->MessageFieldSpec msg-id sub-msg-spec
+                              ident ser-length)))))
 
-(defn parse-array [pkg [ftype aspec ident]]
-  (let []))
+(defn parse-array [pkg [type-spec aspec ident]]
+  (let [ftype (first type-spec)
+        type-size (or (ftype s/field-type-size) 0)
+        arr-size (or (second aspec) 0)]
+    (cond
+      (primitive-type? ftype)
+        (->PrimitiveArrayFieldSpec ftype ident (* arr-size type-size))
+      (string-type? ftype)
+        (->StringArrayFieldSpec ident arr-size)
+      (message-type? ftype)
+        (let [sub-msg-spec (get-msg-spec pkg (next type-spec))
+              msg-id (apply make-msg-id pkg (next type-spec))
+              ser-length (if (s/is-fixed-size? sub-msg-spec)
+                           (compute-fixed-length sub-msg-spec)
+                           0)]
+          (->MessageArrayFieldSpec msg-id sub-msg-spec ident
+                                   arr-size (* arr-size ser-length))))))
 
-(defn parse-field [curr-pkg f]
-  (let [kind (nfirst f)]
+(defn parse-field [curr-pkg [_ f]]
+  (let [kind (first f)]
     (case kind
-      :CONSTANT (parse-const curr-pkg (nnext f))
-      :VAR (parse-var curr-pkg (nnext f))
-      :ARRAYVAR (parse-array curr-pkg (nnext f)))))
+      :CONSTANT (parse-const curr-pkg (next f))
+      :VAR (parse-var curr-pkg (next f))
+      :ARRAYVAR (parse-array curr-pkg (next f)))))
 
 ;; Generate a message specification from a message filename
 (defn generate-msg-spec
   "Generate a message specification from a parsed message"
-  [path]
+  [path pkg name]
   (let [msg (parse-message path)
         md5 (compute-ros-md5 path)
-        {:keys [pkg name]} (get-pkg-name path "msg")
         field-defs (filter field-def? msg)
-        fields (map (partial parse-field pkg) field-defs)]
-    ))
+        all-fields (mapv (partial parse-field pkg) field-defs)
+        fields (filter var-spec? all-fields)
+        constants (filter constant-spec? all-fields)
+        spec (->MessageSpec md5 path pkg name constants fields)]
+    [(->MessageID pkg name) spec]))
 
 ;; serialize arbitrary messages
 (defmethod s/serialize :message [_ ^ByteBuffer stream obj]
