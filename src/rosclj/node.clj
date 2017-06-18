@@ -21,6 +21,7 @@
            :or   {master-uri      nil
                   anonymous       false
                   cmd-line-args   (next *command-line-args*)}}]
+  
   (let [master-uri (when-not master-uri
                      (or *default-master-uri*
                          (u/get-env "ROS_MASTER_URI")))
@@ -30,6 +31,7 @@
         _ (u/ensure-directories-exist (:roslog node))]
     (roslog/setup-logging (u/get-ros-log-location node))
     ;; process the params
+    ;; start up the node, creating the xmlrpc node
     ))
 
 (defn spin

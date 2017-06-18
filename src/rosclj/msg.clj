@@ -1,5 +1,6 @@
 (ns rosclj.msg
   (:require [rosclj.serialization :as s]
+            [rosclj.pkg]
             [instaparse.core :as insta]
             [me.raynes.fs :as fs]
             [taoensso.timbre :as log])
