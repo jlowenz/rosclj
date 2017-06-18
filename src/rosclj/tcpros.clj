@@ -61,9 +61,16 @@
   [port]
   nil)
 
+(defn parse-tcpros-header
+  [message]
+  (let [hdr (:header message)]
+    ))
+
 (defn server-connection-handler
   "Use the TCPROS conventions for determining whether the incoming
   connection is for a topic (header contains `topic` field) or a
   service (header contains `service` field). Hands off to a
   handle-topic or handle-service function."
-  [node s info])
+  [node s info]
+  ;; 
+  )
