@@ -7,6 +7,10 @@
 
 (def port 7778)
 
+(fact "header parse works"
+      (tcp/parse-tcpros-header {:header ["a=b" "c=d"]}) => {"a" "b"
+                                                            "c" "d"})
+
 (fact "creating a super simple handler for tcp server"
       (let [h (fn [so info]
                 (d/loop []

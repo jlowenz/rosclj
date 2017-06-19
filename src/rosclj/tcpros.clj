@@ -4,7 +4,8 @@
             [gloss.io :as gio]
             [aleph.tcp :as tcp]
             [manifold.stream :as s]
-            [manifold.deferred :as d]))
+            [manifold.deferred :as d]
+            [clojure.string :as str]))
 
 ;; how many second to wait until giving up
 (def ^:dynamic *tcp-timeout* 5.0)
@@ -64,7 +65,7 @@
 (defn parse-tcpros-header
   [message]
   (let [hdr (:header message)]
-    ))
+    (reduce #(apply assoc %1 (str/split %2 #"=")) {} hdr)))
 
 (defn server-connection-handler
   "Use the TCPROS conventions for determining whether the incoming
