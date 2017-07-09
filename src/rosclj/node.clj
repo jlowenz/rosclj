@@ -6,7 +6,7 @@
 
 (def ^:dynamic *default-master-uri* nil)
 
-(defrecord Node [status master-uri namespace name remapped])
+(defrecord Node [status master-uri namespace name remapped publications])
 
 (defn make-ros-node
   "Construct a new ROS node. Requires the name parameter, and

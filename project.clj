@@ -8,7 +8,9 @@
                  [org.clojure/tools.namespace "0.2.11"]
                  [com.taoensso/timbre "4.10.0"] ;; logging
                  [midje "1.8.3"]
+                 [funcool/cats "2.1.0"] ;; for category theory, monads, functors etc.
                  [me.raynes/fs "1.4.6"]
+                 [pandect "0.6.1"] ;; for digests like md5
                  [necessary-evil "2.0.2"] ;; xml-rpc
                  [dire "0.5.4"] ;; error handling
                  [slingshot "0.12.2"] ;; enhanced throw
